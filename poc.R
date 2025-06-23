@@ -3,8 +3,6 @@
 # jcoliver@arizona.edu
 # 2025-06-20
 
-
-
 # Want to interpolate (impute) missing precipitation data from geographically 
 # nearby sites with precipitation data
 
@@ -95,3 +93,8 @@ precip_interp <- sapply(X = 1:length(precip_data),
 
 # Calculate RMSE
 sqrt(mean((precip_data - precip_interp)^2))
+
+# Try it with functions
+source(file = "functions.R")
+precip_interp <- apply_knn(pd = precip_data, dma = distance_mat, k = 3)
+# Looks good!
