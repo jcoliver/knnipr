@@ -8,6 +8,10 @@ library(dplyr)
 library(tidyr)
 source(file = "functions.R")
 
+# Code below may be reinvention of approaches listed at 
+# https://rspatial.org/analysis/4-interpolation.html and
+# https://r-spatial.org/book/12-Interpolation.html
+
 # arable_barcode     lat      lon      date rain_arable
 #        C012632 1.97409 32.37736 10aug2023          NA
 
@@ -147,5 +151,7 @@ rain_long <- rain_df %>%
                      replacement = "",
                      x = date)) %>%
   rename(arable_barcode = V1)
-head(rain_long)
-head(rain_data)
+
+write.csv(x = rain_long, 
+          row.names = FALSE,
+          file = "azdata/daily_arable_imputed.csv")
