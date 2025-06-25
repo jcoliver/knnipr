@@ -6,11 +6,11 @@
 # Want to interpolate (impute) missing precipitation data from geographically 
 # nearby sites with precipitation data
 
+# This script includes early development stuff
+
 # TODO: How will distance ties be resolved? (currently "broken" in order of how 
 # sites are ordered in distance matrix - if elements 2 and 4 are ties, and we 
 # only need one, element 2 is always chosen)
-# TODO: Add distance weighting option (as opposed to unweighted means)
-# TODO: Move stuff to functions
 
 # 1. Once we have the precip data, drop missing rows
 # 2. Sort by distance

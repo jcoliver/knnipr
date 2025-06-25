@@ -8,7 +8,7 @@ library(dplyr)
 library(tidyr)
 source(file = "functions.R")
 
-# Code below may be reinvention of approaches listed at 
+# Code below (and in functions.R) may be reinvention of approaches listed at 
 # https://rspatial.org/analysis/4-interpolation.html and
 # https://r-spatial.org/book/12-Interpolation.html
 
@@ -53,58 +53,49 @@ rownames(rain_mat) <- rain_data$arable_barcode
 # Ensure rain data is same order as distance matrix
 rain_mat <- rain_mat[rownames(dist_mat), ]
 
-# Data are ready, use something like below, once for each day (column)
-# precip_interp <- apply_knn(pd = precip_data, dma = distance_mat, k = 3)
-day1 <- apply_knn(pd = rain_mat[, 1],
-                  dma = dist_mat,
-                  k = 3)
+# Do calculations on all days
+# Just try arithmetic mean with k = 4
+all_days <- sapply(X = 1:ncol(rain_mat),
+                   FUN = function(j, rain_matrix, distance_matrix, k) {
+                     apply_knn(pd = rain_matrix[, j],
+                               dma = distance_matrix,
+                               k = k)
+                   }, 
+                   rain_matrix = rain_mat,
+                   distance_matrix = dist_mat,
+                   k = 4)
 
-# Let's look at site 1 (row 1). What are non-missing rain values nearby?
-dists_1 <- dist_mat[, 1]
-precip_1 <- rain_mat[order(dists_1), 1]
-precip_1_nomissing <- precip_1[!is.na(precip_1)]
-# And how far away are these?
-dists_1_nomissing <- dist_mat[names(precip_1_nomissing), 1]
+# Now use idw
+all_days_idw <- sapply(X = 1:ncol(rain_mat),
+                       FUN = function(j, rain_matrix, distance_matrix, k) {
+                         apply_knn(pd = rain_matrix[, j],
+                                   dma = distance_matrix,
+                                   k = k,
+                                   idw = TRUE)
+                       }, 
+                       rain_matrix = rain_mat,
+                       distance_matrix = dist_mat,
+                       k = 4)
 
-# OK, seems fine? 
-
-# Site 1 has only 13 "nearby" sites with non-missing data. We could add another
-# condition that limits the maximum distance one could call a "neighbor"...
-
-# How do we do this with all the data, i.e. once for each column, and assemble 
-# it back into a matrix?
-# Start with the dumb for loop way
-rain_int <- matrix(data = NA, 
-                   ncol = ncol(rain_mat),
-                   nrow = nrow(rain_mat))
-for (j in 1:ncol(rain_mat)) {
-  day_j <- apply_knn(pd = rain_mat[, j],
-                     dma = dist_mat,
-                     k = 4)
-  rain_int[, j] <- day_j
-}
-
-rmse <- sqrt(mean((rain_int - rain_mat)^2, na.rm = TRUE))
-
-# Long way works. Do some k testing
+# Try different values of k for each approach
+# Arithmetic mean
 for (k in 1:10) {
-  rain_int <- matrix(data = NA, 
-                     ncol = ncol(rain_mat),
-                     nrow = nrow(rain_mat))
-  for (j in 1:ncol(rain_mat)) {
-    day_j <- apply_knn(pd = rain_mat[, j],
-                       dma = dist_mat,
-                       k = k)
-    rain_int[, j] <- day_j
-  }
+  rain_int <- sapply(X = 1:ncol(rain_mat),
+                     FUN = function(j, rain_matrix, distance_matrix, k) {
+                       apply_knn(pd = rain_matrix[, j],
+                                 dma = distance_matrix,
+                                 k = k)
+                     }, 
+                     rain_matrix = rain_mat,
+                     distance_matrix = dist_mat,
+                     k = k)
   rmse <- sqrt(mean((rain_int - rain_mat)^2, na.rm = TRUE))
   message("For k = ", k, ", rmse = ", round(rmse, digits = 3))
 }
-
 # For k = 1, rmse = 6.449
 # For k = 2, rmse = 5.84
 # For k = 3, rmse = 5.645
-# For k = 4, rmse = 5.628
+# For k = 4, rmse = 5.628  <--- min
 # For k = 5, rmse = 5.658
 # For k = 6, rmse = 5.691
 # For k = 7, rmse = 5.724
@@ -112,46 +103,30 @@ for (k in 1:10) {
 # For k = 9, rmse = 5.801
 # For k = 10, rmse = 5.838
 
-# k = 4 minimizes rmse
+# Inverse distance weighting
+for (k in 1:10) {
+  rain_int <- sapply(X = 1:ncol(rain_mat),
+                     FUN = function(j, rain_matrix, distance_matrix, k) {
+                       apply_knn(pd = rain_matrix[, j],
+                                 dma = distance_matrix,
+                                 k = k,
+                                 idw = TRUE)
+                     }, 
+                     rain_matrix = rain_mat,
+                     distance_matrix = dist_mat,
+                     k = k)
+  rmse <- sqrt(mean((rain_int - rain_mat)^2, na.rm = TRUE))
+  message("For k = ", k, ", rmse = ", round(rmse, digits = 3))
+}
+# For k = 1, rmse = 6.449
+# For k = 2, rmse = 5.819
+# For k = 3, rmse = 5.599
+# For k = 4, rmse = 5.53
+# For k = 5, rmse = 5.525
+# For k = 6, rmse = 5.518  <--- min
+# For k = 7, rmse = 5.52
+# For k = 8, rmse = 5.529
+# For k = 9, rmse = 5.538
+# For k = 10, rmse = 5.548
 
-# How about not dumb way?
-
-all_days <- sapply(X = 1:ncol(rain_mat),
-       FUN = function(j, rain_matrix, distance_matrix, k) {
-         apply_knn(pd = rain_matrix[, j],
-                   dma = distance_matrix,
-                   k = k)
-       }, 
-       rain_matrix = rain_mat,
-       distance_matrix = dist_mat,
-       k = 4)
-
-sum(rain_int - all_days, na.rm = TRUE)
-sum(is.na(all_days))
-# 80
-sum(is.na(rain_int))
-# 80
-missings <- is.na(rain_mat)
-column_missing <- colSums(missings)
-# Oh, all sites are missing data for final day (31jul2024)
-
-# Let's take that all_days thing and use it to fill in missing values rain_mat
-rain_complete <- rain_mat
-rain_complete[is.na(rain_mat)] <- all_days[is.na(rain_mat)]
-
-# need to convert this back to long data, with site id
-# start by making a data frame
-rain_df <- data.frame(cbind(rownames(rain_complete), rain_complete))
-rownames(rain_df) <- NULL
-rain_long <- rain_df %>%
-  pivot_longer(cols = -V1,
-               names_to = "date",
-               values_to = "rain_arable") %>%
-  mutate(date = gsub(pattern = "X",
-                     replacement = "",
-                     x = date)) %>%
-  rename(arable_barcode = V1)
-
-write.csv(x = rain_long, 
-          row.names = FALSE,
-          file = "azdata/daily_arable_imputed.csv")
+# So, to minimize RMSE, use k = 6 and inverse distance weighting
